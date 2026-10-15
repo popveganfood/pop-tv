@@ -1,0 +1,15 @@
+node_modules/
+web/dist/
+data/
+.env
+.env.*
+!.env.example
+*.log
+e2e/out/
+e2e/out/
+.claude-flow/
+.swarm/
+agentdb.rvf*
+ruvector.db
+.claude/memory.db
+graphify-out/cache/

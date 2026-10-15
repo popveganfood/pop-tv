@@ -1,0 +1,54 @@
+/* Sistema de design POP TV — tokens do Design System POP Vegan Food
+   (Vermerosa #da3250 · Preto #000000 · Laranja #f79433 · Branco #ffffff · Poppins).
+   Para trocar a identidade, altere só este bloco @theme. */
+@import "tailwindcss";
+@import "@fontsource/poppins/latin-400.css";
+@import "@fontsource/poppins/latin-500.css";
+@import "@fontsource/poppins/latin-600.css";
+@import "@fontsource/poppins/latin-700.css";
+@import "@fontsource/poppins/latin-800.css";
+@import "@fontsource/poppins/latin-900.css";
+@import "@fontsource/poppins/latin-900-italic.css";
+
+@theme {
+  --font-sans: "Poppins", system-ui, sans-serif;
+  --color-pop: #da3250;        /* Vermerosa — ação principal, destaque */
+  --color-pop-dark: #b0213c;   /* hover/pressionado da Vermerosa (contraste 6.7:1 com branco) */
+  --color-pop-soft: #fbe3e8;   /* fundo de destaque suave */
+  --color-laranja: #f79433;    /* Laranja — acento, avisos, "VEGAN FOOD" */
+  --color-laranja-soft: #fdebd8;
+  --color-laranja-ink: #8a4a0c; /* texto sobre laranja-soft (contraste 5.9:1) */
+  --color-preto: #000000;
+  --color-branco: #ffffff;
+  --color-tinta: #141414;      /* texto principal */
+  --color-cinza: #5e5e5e;      /* texto secundário (6.5:1 no branco) */
+  --color-linha: #e6e6e6;      /* bordas */
+  --color-fundo: #f5f5f5;      /* fundo da área de trabalho */
+  --color-ok: #137a45;         /* online (5.4:1 no branco) */
+  --color-ok-soft: #dcf3e6;
+  --radius-pop: 14px;
+  --shadow-card: 0 1px 0 rgba(0,0,0,.04), 0 8px 24px -12px rgba(0,0,0,.18);
+  --animate-rise: rise .35s cubic-bezier(.2,.7,.2,1) both;
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(19,122,69,.45); } 50% { box-shadow: 0 0 0 6px rgba(19,122,69,0); } }
+
+html { -webkit-font-smoothing: antialiased; }
+body { @apply bg-fundo text-tinta font-sans; }
+:focus-visible { outline: 3px solid var(--color-laranja); outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Faixa assinatura POP: Vermerosa com ponta laranja (mesma das telas da TV) */
+.pop-stripe { position: relative; height: 6px; background: var(--color-pop); }
+.pop-stripe::after { content: ""; position: absolute; right: 0; top: 0; height: 100%; width: 30%; background: var(--color-laranja); }
+
+/* título de pôster: palavra marcada com bloco Vermerosa */
+.poster-mark { background: linear-gradient(transparent 58%, var(--color-pop) 58%, var(--color-pop) 92%, transparent 92%); padding: 0 .08em; }
+
+.live-dot { width: 10px; height: 10px; border-radius: 99px; background: var(--color-ok); animation: pulse-dot 2s infinite; }
+
+dialog::backdrop { background: rgba(0,0,0,.55); backdrop-filter: blur(2px); }
+dialog[open] { animation: var(--animate-rise); }
+
+input[type="checkbox"], input[type="radio"] { accent-color: var(--color-pop); }

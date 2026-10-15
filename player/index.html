@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>POP TV</title>
+<style>
+  @font-face { font-family: Poppins; font-weight: 700; src: url(poppins-700.woff2) format("woff2"); }
+  @font-face { font-family: Poppins; font-weight: 900; src: url(poppins-900.woff2) format("woff2"); }
+  html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff;
+    font-family: Poppins, Arial, Helvetica, sans-serif; cursor: none; -webkit-user-select: none; user-select: none; }
+  #stage { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: hidden; background: #000; }
+  #stage.rot { width: 100vh; height: 100vw; left: 100vw; -webkit-transform-origin: 0 0; transform-origin: 0 0; -webkit-transform: rotate(90deg); transform: rotate(90deg); }
+  .layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; opacity: 0;
+    -webkit-transition: opacity .6s ease; transition: opacity .6s ease; }
+  .layer.on { opacity: 1; }
+  .layer img, .layer video { position: absolute; left: 0; top: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  /* telas da marca: pareamento e espera */
+  .brand { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: none; background: #000;
+    text-align: center; z-index: 5; }
+  .brand.show { display: block; }
+  .brand .wrap { position: absolute; left: 50%; top: 50%; width: 90%; -webkit-transform: translate(-50%, -50%); transform: translate(-50%, -50%); }
+  .brand .logo { width: 14vmin; height: 14vmin; }
+  .stripe { position: absolute; left: 0; bottom: 0; width: 100%; height: 2.2vmin; background: #da3250; }
+  .stripe i { position: absolute; right: 0; top: 0; width: 30%; height: 100%; background: #f79433; }
+  .kicker { color: #f79433; font-weight: 700; letter-spacing: .35em; font-size: 2.2vmin; margin-top: 3vmin; text-transform: uppercase; }
+  .code { font-weight: 900; font-size: 15vmin; letter-spacing: .12em; line-height: 1.05; margin: 2vmin 0; color: #fff; }
+  .code span { color: #da3250; }
+  .help { font-size: 2.6vmin; line-height: 1.5; color: #ddd; font-weight: 700; }
+  .help b { color: #fff; }
+  .small { font-size: 1.8vmin; color: #9a9a9a; margin-top: 3vmin; font-weight: 700; }
+  .warn { margin: 3vmin auto 0; max-width: 70vmin; padding: 1.6vmin 2vmin; border: .3vmin solid #f79433; color: #f79433; font-size: 2vmin; font-weight: 700; display: none; }
+  .idle-title { font-weight: 900; font-size: 7vmin; margin-top: 3vmin; }
+  .idle-title span { color: #da3250; }
+  #hint { position: absolute; right: 2vmin; top: 2vmin; z-index: 9; background: rgba(0,0,0,.75); color: #fff; padding: 1vmin 1.6vmin;
+    font-size: 1.8vmin; font-weight: 700; border-left: .6vmin solid #da3250; display: none; }
+</style>
+</head>
+<body>
+<div id="stage"><div class="layer" id="la"></div><div class="layer" id="lb"></div></div>
+
+<div class="brand" id="pairing">
+  <div class="wrap">
+    <img class="logo" src="logo.png" alt="POP Vegan Food">
+    <div class="kicker">POP TV · conectar esta tela</div>
+    <div class="code" id="code">······</div>
+    <div class="help">No painel do POP TV, clique em <b>+ Adicionar tela</b><br>e digite o código acima.</div>
+    <div class="small" id="pairInfo">O código vale por 10 minutos.</div>
+    <div class="warn" id="capWarn"></div>
+  </div>
+  <div class="stripe"><i></i></div>
+</div>
+
+<div class="brand" id="idle">
+  <div class="wrap">
+    <img class="logo" src="logo.png" alt="POP Vegan Food">
+    <div class="idle-title">Democratizando a <span>comida vegana</span></div>
+    <div class="small" id="idleInfo">Aguardando programação…</div>
+  </div>
+  <div class="stripe"><i></i></div>
+</div>
+
+<div id="hint">Pressione OK para tela cheia</div>
+<script src="player.js"></script>
+</body>
+</html>

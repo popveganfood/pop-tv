@@ -1,0 +1,8 @@
+node_modules/
+web/dist/
+e2e/out/
+data/
+.claude/
+.specify/
+.swarm/
+server/test/fixtures/
