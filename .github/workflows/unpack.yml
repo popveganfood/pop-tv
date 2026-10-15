@@ -1,0 +1,22 @@
+# Desempacota o pop-tv.b64 colado pela web do GitHub (usado só para a primeira carga do código).
+name: Desempacotar código
+on: [push, workflow_dispatch]
+permissions:
+  contents: write
+jobs:
+  unpack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Desempacotar
+        run: |
+          if [ ! -f pop-tv.b64 ]; then echo "nada a fazer"; exit 0; fi
+          tr -d ' \r\n' < pop-tv.b64 | base64 -d > /tmp/pop-tv.zip
+          unzip -q -o /tmp/pop-tv.zip -d /tmp/x
+          git rm -q pop-tv.b64
+          cp -a /tmp/x/pop-tv/. .
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Código do POP TV (desempacotado de pop-tv.b64)"
+          git push
