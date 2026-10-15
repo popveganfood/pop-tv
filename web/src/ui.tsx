@@ -140,8 +140,8 @@ export function Badge({ tone = 'neutro', children }: { tone?: 'ok' | 'pop' | 'la
 export function StatusPill({ online, paired = true }: { online: boolean; paired?: boolean }) {
   if (!paired) return <Badge tone="laranja">Sem pareamento</Badge>;
   return online
-    ? <span className="inline-flex items-center gap-2 text-xs font-bold text-ok"><span className="live-dot" />Online</span>
-    : <span className="inline-flex items-center gap-2 text-xs font-bold text-pop-dark"><span className="w-2.5 h-2.5 rounded-full bg-pop" />Offline</span>;
+    ? <span className="inline-flex items-center gap-2 text-xs font-bold text-pop-dark"><span className="live-dot" />No ar</span>
+    : <span className="inline-flex items-center gap-2 text-xs font-bold text-cinza"><span className="w-2.5 h-2.5 rounded-full bg-sinal" />Sem sinal</span>;
 }
 
 export function Empty({ title, text, action }: { title: string; text?: string; action?: ReactNode }) {
