@@ -31,8 +31,21 @@ export default async function dashboardRoutes(app: FastifyInstance) {
     }
     upcoming.sort((a, b) => a.starts.localeCompare(b.starts));
 
+    // linha do tempo de hoje (00:00–24:00 no fuso da primeira tela visível)
+    const tz = (screens.length && s.screens.get(screens[0].id)?.timezone) || 'America/Sao_Paulo';
+    const nowLocal = localNaive(now, tz);
+    const dayStart = nowLocal - (nowLocal % 86_400_000);
+    const plNames = new Map((await q<{ id: string; name: string }>('select id, name from playlists')).map((p) => [p.id, p.name]));
+    const timeline = s.rules.flatMap((r) => {
+      const hit = screens.filter((sc) => { const ctx = s.screens.get(sc.id); return ctx && targets(r, ctx); });
+      if (!hit.length) return [];
+      const today = blocks(r, dayStart, 1, 15 * 60_000);
+      return today.length ? [{ id: r.id, name: r.name, priority: r.priority, priority_label: PRIORITY_LABEL[r.priority], target_type: r.target_type,
+        playlist_name: plNames.get(r.playlist_id) ?? '', screens: hit.length, blocks: today }] : [];
+    }).sort((a, b) => b.priority - a.priority || a.name.localeCompare(b.name));
+
     const published = await q('select count(*)::int as n from playlists where published_version_id is not null and archived_at is null');
-    const changes = await q(`select a.summary, a.created_at, a.action, u.name as user_name from audit_logs a left join users u on u.id = a.user_id
+    const changes = await q(`select a.summary, a.created_at, a.action, a.entity_type, u.name as user_name from audit_logs a left join users u on u.id = a.user_id
                               where $1::boolean or a.user_id = $2 order by a.id desc limit 10`, [isAdmin(me) || seesAllUnits(me), me.id]);
     return {
       counts: {
@@ -48,6 +61,9 @@ export default async function dashboardRoutes(app: FastifyInstance) {
       screens,
       live_campaigns: live.map((r) => ({ id: r.id, name: r.name, priority_label: PRIORITY_LABEL[r.priority] })),
       upcoming: upcoming.slice(0, 8),
+      timeline: timeline.slice(0, 8),
+      now_local: new Date(nowLocal).toISOString().slice(0, 16).replace('T', ' '),
+      timezone: tz,
       changes,
     };
   });
