@@ -32,7 +32,7 @@ export function assertConfig() {
   const problems: string[] = [];
   if (config.isProd && config.storageDriver === 'local')
     problems.push('STORAGE_DRIVER=local é proibido em produção (o disco do Railway é temporário). Use r2.');
-  if (config.isProd && config.appSecret.length < 32) problems.push('APP_SECRET precisa ter 32+ caracteres em produção.');
+  // APP_SECRET só assina URLs do armazenamento local (dev/teste); com R2/S3 não é usado.
   if (config.storageDriver !== 'local' && (!config.s3.endpoint || !config.s3.bucket || !config.s3.accessKeyId || !config.s3.secretAccessKey))
     problems.push(config.storageDriver === 'r2' ? 'Faltam R2_ACCOUNT_ID / R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY.' : 'Faltam S3_ENDPOINT / S3_BUCKET / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY.');
   if (problems.length) throw new Error('Configuração inválida:\n- ' + problems.join('\n- '));
