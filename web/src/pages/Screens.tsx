@@ -11,6 +11,12 @@ export type Screen = any;
 
 const SOURCE_LABEL: Record<string, string> = { regra: '', segurança: 'Playlist de segurança', nenhuma: 'Tela da marca (sem conteúdo)', desativada: 'Desativada' };
 
+/** Luz de "no ar" (convenção de TV: vermelho = no ar). Vermerosa no ar · grafite sem sinal · laranja sem pareamento */
+export function Tally({ s }: { s: Screen }) {
+  const [cls, text] = !s.paired ? ['bg-laranja text-preto', 'SEM PAREAMENTO'] : s.online ? ['bg-pop text-white tally-on', 'NO AR'] : ['bg-sinal text-white/80', 'SEM SINAL'];
+  return <span className={`inline-flex items-center gap-1.5 text-[10px] font-black px-2 py-1 rounded-md tracking-[.14em] ${cls}`}>{s.paired && s.online && <span className="w-1.5 h-1.5 rounded-full bg-white" />}{text}</span>;
+}
+
 // ---------------- Card de TV (moldura de TV, usado no início e em Telas) ----------------
 export function TvCard({ s, onManage, onPreview, onSwitch }: { s: Screen; onManage: () => void; onPreview: () => void; onSwitch: () => void }) {
   const me = useMe();
@@ -21,9 +27,7 @@ export function TvCard({ s, onManage, onPreview, onSwitch }: { s: Screen; onMana
       <div className="rounded-xl bg-preto p-2 pb-3 relative">
         <Thumb url={d?.playlist?.first?.thumb_url} kind={d?.playlist?.first?.kind} className={`rounded-md ${portrait ? 'aspect-[9/16] w-1/2 mx-auto' : 'aspect-video'}`} />
         <div className="absolute top-3.5 left-3.5">
-          {s.paired ? (s.online ? <span className="bg-ok text-white text-[10px] font-black px-2 py-1 rounded-full tracking-wider">● NO AR</span>
-            : <span className="bg-pop text-white text-[10px] font-black px-2 py-1 rounded-full tracking-wider">OFFLINE</span>)
-            : <span className="bg-laranja text-preto text-[10px] font-black px-2 py-1 rounded-full tracking-wider">SEM PAREAMENTO</span>}
+          <Tally s={s} />
         </div>
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-white/20" />
       </div>
@@ -52,11 +56,24 @@ export function TvCard({ s, onManage, onPreview, onSwitch }: { s: Screen; onMana
   );
 }
 
-/** Cards + modais ligados (gerenciar, simular, trocar), para reuso */
-export function TvWall({ screens, reload, groupBy = true }: { screens: Screen[]; reload: () => void; groupBy?: boolean }) {
+/** Modais de uma tela (gerenciar, simular, trocar programação), para reuso no início e em Telas */
+export function useScreenModals(reload: () => void) {
   const [manage, setManage] = useState<Screen | null>(null);
   const [preview, setPreview] = useState<Screen | null>(null);
   const [sw, setSw] = useState<Screen | null>(null);
+  const node = (
+    <>
+      {manage && <ManageScreen screen={manage} onClose={() => { setManage(null); reload(); }} />}
+      {preview && <ScreenPreview screen={preview} onClose={() => setPreview(null)} />}
+      {sw && <SwitchProgram screen={sw} onClose={(changed) => { setSw(null); if (changed) reload(); }} />}
+    </>
+  );
+  return { manage: setManage, preview: setPreview, switchProgram: setSw, node };
+}
+
+/** Cards + modais ligados, para reuso */
+export function TvWall({ screens, reload, groupBy = true }: { screens: Screen[]; reload: () => void; groupBy?: boolean }) {
+  const modals = useScreenModals(reload);
   const groups = useMemo(() => {
     const m = new Map<string, Screen[]>();
     for (const s of screens) {
@@ -74,15 +91,13 @@ export function TvWall({ screens, reload, groupBy = true }: { screens: Screen[];
             <section key={k}>
               {groupBy && <h3 className="text-sm font-black uppercase tracking-wider mb-3"><span className="text-pop">{unit}</span> <span className="text-cinza">/ {env}</span></h3>}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {list.map((s) => <TvCard key={s.id} s={s} onManage={() => setManage(s)} onPreview={() => setPreview(s)} onSwitch={() => setSw(s)} />)}
+                {list.map((s) => <TvCard key={s.id} s={s} onManage={() => modals.manage(s)} onPreview={() => modals.preview(s)} onSwitch={() => modals.switchProgram(s)} />)}
               </div>
             </section>
           );
         })}
       </div>
-      {manage && <ManageScreen screen={manage} onClose={() => { setManage(null); reload(); }} />}
-      {preview && <ScreenPreview screen={preview} onClose={() => setPreview(null)} />}
-      {sw && <SwitchProgram screen={sw} onClose={(changed) => { setSw(null); if (changed) reload(); }} />}
+      {modals.node}
     </>
   );
 }
