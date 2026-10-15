@@ -52,7 +52,7 @@ await check('Login pela tela de entrada', async () => {
   await page.getByLabel('E-mail').fill('marketing@popveganfood.com.br');
   await page.getByLabel('Senha').fill('senha-forte-123');
   await page.getByRole('button', { name: 'Entrar no painel' }).click();
-  await page.getByText('Telas online').waitFor();
+  await page.getByText('Sala de controle').waitFor();
 });
 
 await check('Adicionar tela digitando o código da TV', async () => {
@@ -111,13 +111,13 @@ await check('Agendar a playlist na TV com verificação de conflitos', async () 
 await check('A TV recebe e o painel mostra "TV confirmou"', async () => {
   await tv.waitForFunction(() => (window.__popTv.current() || {}).items?.length === 2, null, { timeout: 20000 });
   await page.getByRole('link', { name: 'Início' }).click();
-  await page.getByText('TV confirmou').waitFor({ timeout: 30000 });
+  await page.locator('[title="A TV confirmou esta versão"]').first().waitFor({ timeout: 30000 });
   await shot('26-ui-dashboard-confirmado');
   await tv.screenshot({ path: OUT + '27-tv-tocando.png' });
 });
 
 await check('Pré-visualizar abre o simulador rotulado como simulação', async () => {
-  await page.getByRole('button', { name: 'Pré-visualizar' }).first().click();
+  await page.getByRole('button', { name: /Simular a programação de/ }).first().click();
   await page.getByText('Simulação — não é a imagem ao vivo da TV').waitFor();
   await page.getByRole('button', { name: 'Vertical 9:16' }).click();
   await sleep(600);
