@@ -248,7 +248,7 @@ await check('Painel · login e dashboard com dados reais', async () => {
   await p.fill('input[type=email]', 'admin@pop.test');
   await p.fill('input[type=password]', 'senha-forte-123');
   await p.click('button[type=submit]');
-  await p.waitForSelector('text=Telas online', { timeout: 10000 });
+  await p.waitForSelector('text=Sala de controle', { timeout: 10000 });
   await sleep(800);
   await shot(p, '10-painel-dashboard');
   for (const [path, name] of [['/telas', '11-painel-telas'], ['/midia', '12-painel-midia'], ['/playlists', '13-painel-playlists'], ['/programacao', '14-painel-programacao'], ['/unidades', '15-painel-unidades'], ['/usuarios', '16-painel-usuarios']]) {
