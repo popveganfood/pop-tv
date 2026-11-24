@@ -25,7 +25,7 @@ export async function unitsReachedByPlaylist(playlistId: string, db?: Db) {
   return { all, units: [...units] };
 }
 
-async function assertCanPublishPlaylist(me: User, playlistId: string) {
+export async function assertCanPublishPlaylist(me: User, playlistId: string) {
   assertContent(me);
   const reach = await unitsReachedByPlaylist(playlistId);
   assertPublish(me, reach.units, reach.all);
