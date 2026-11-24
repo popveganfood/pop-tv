@@ -18,7 +18,7 @@ export function Tally({ s }: { s: Screen }) {
 }
 
 // ---------------- Card de TV (moldura de TV, usado no início e em Telas) ----------------
-export function TvCard({ s, onManage, onPreview, onSwitch }: { s: Screen; onManage: () => void; onPreview: () => void; onSwitch: () => void }) {
+export function TvCard({ s, onManage, onPreview, onSwitch, onRemove }: { s: Screen; onManage: () => void; onPreview: () => void; onSwitch: () => void; onRemove?: () => void }) {
   const me = useMe();
   const d = s.decision;
   const portrait = s.orientation === 'portrait';
@@ -51,6 +51,7 @@ export function TvCard({ s, onManage, onPreview, onSwitch }: { s: Screen; onMana
         <Button size="sm" variant="dark" onClick={onManage}>Gerenciar</Button>
         <Button size="sm" variant="ghost" onClick={onPreview}>Pré-visualizar</Button>
         {can.publish(me) && <Button size="sm" variant="ghost" onClick={onSwitch}>Trocar programação</Button>}
+        {onRemove && can.screens(me, s.unit_id) && <Button size="sm" variant="ghost" className="text-pop-dark! hover:bg-pop-soft!" onClick={onRemove}>Excluir</Button>}
       </div>
     </Card>
   );
@@ -61,14 +62,23 @@ export function useScreenModals(reload: () => void) {
   const [manage, setManage] = useState<Screen | null>(null);
   const [preview, setPreview] = useState<Screen | null>(null);
   const [sw, setSw] = useState<Screen | null>(null);
+  const confirm = useConfirm();
+  const { run } = useAction();
+  /** excluir a tela: some do painel, a TV perde o acesso e volta à tela de código */
+  async function remove(s: Screen) {
+    const ok = await confirm.ask(`Excluir "${s.name}"?`,
+      `A tela sai do painel, as programações feitas só para ela são apagadas e a TV volta a mostrar o código de pareamento. O histórico continua registrado. Não dá para desfazer.`, 'Excluir tela');
+    if (ok && await run(() => del(`/api/screens/${s.id}`), `Tela "${s.name}" excluída.`)) reload();
+  }
   const node = (
     <>
+      {confirm.node}
       {manage && <ManageScreen screen={manage} onClose={() => { setManage(null); reload(); }} />}
       {preview && <ScreenPreview screen={preview} onClose={() => setPreview(null)} />}
       {sw && <SwitchProgram screen={sw} onClose={(changed) => { setSw(null); if (changed) reload(); }} />}
     </>
   );
-  return { manage: setManage, preview: setPreview, switchProgram: setSw, node };
+  return { manage: setManage, preview: setPreview, switchProgram: setSw, remove, node };
 }
 
 /** Cards + modais ligados, para reuso */
@@ -91,7 +101,7 @@ export function TvWall({ screens, reload, groupBy = true }: { screens: Screen[];
             <section key={k}>
               {groupBy && <h3 className="text-sm font-black uppercase tracking-wider mb-3"><span className="text-pop">{unit}</span> <span className="text-cinza">/ {env}</span></h3>}
               <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {list.map((s) => <TvCard key={s.id} s={s} onManage={() => modals.manage(s)} onPreview={() => modals.preview(s)} onSwitch={() => modals.switchProgram(s)} />)}
+                {list.map((s) => <TvCard key={s.id} s={s} onManage={() => modals.manage(s)} onPreview={() => modals.preview(s)} onSwitch={() => modals.switchProgram(s)} onRemove={() => modals.remove(s)} />)}
               </div>
             </section>
           );
@@ -298,10 +308,10 @@ function ManageScreen({ screen, onClose }: { screen: Screen; onClose: () => void
             }}>Revogar</Button>
           </Card>
           <Card className="p-4 flex flex-wrap items-center justify-between gap-3">
-            <div><p className="font-bold">Remover tela</p><p className="text-sm text-cinza">Apaga o cadastro e as programações específicas desta TV. O histórico continua registrado.</p></div>
+            <div><p className="font-bold">Excluir tela</p><p className="text-sm text-cinza">Apaga o cadastro e as programações específicas desta TV. O histórico continua registrado.</p></div>
             <Button variant="danger" disabled={!editable} onClick={async () => {
-              if (await confirm.ask('Remover esta tela?', `"${s.name}" será removida. Isso não pode ser desfeito.`, 'Remover definitivamente')) { const r = await run(() => del(`/api/screens/${s.id}`), 'Tela removida.'); if (r) onClose(); }
-            }}>Remover</Button>
+              if (await confirm.ask(`Excluir "${s.name}"?`, 'A tela sai do painel e a TV volta a mostrar o código de pareamento. Não dá para desfazer.', 'Excluir tela')) { const r = await run(() => del(`/api/screens/${s.id}`), `Tela "${s.name}" excluída.`); if (r) onClose(); }
+            }}>Excluir</Button>
           </Card>
         </div>
       )}
