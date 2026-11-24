@@ -57,6 +57,37 @@ export function Uploader({ collectionId, onDone, compact }: { collectionId?: str
   );
 }
 
+/** Excluir um ou vários arquivos. Se algum estiver em playlists, avisa e retira de lá (republicando sem ele). */
+function useDeleteMedia(after: () => void) {
+  const confirm = useConfirm();
+  const toast = useToast();
+  const [busy, setBusy] = useState(false);
+  async function remove(list: any[]) {
+    if (!list.length) return false;
+    const used = list.filter((m) => m.used_in > 0);
+    const one = list.length === 1;
+    const title = one ? `Excluir "${list[0].name}"?` : `Excluir ${list.length} arquivos?`;
+    const k = used.length;
+    const who = one ? 'Este arquivo está' : k === list.length ? 'Todos estão' : k === 1 ? '1 deles está' : `${k} deles estão`;
+    const text = k
+      ? `${who} em playlists. ${k === 1 ? 'Ele será retirado' : 'Serão retirados'} delas e as playlists publicadas serão republicadas sem ${k === 1 ? 'ele' : 'eles'} — as TVs atualizam em até 30 s. Não dá para desfazer.`
+      : `${one ? 'O arquivo sai' : 'Os arquivos saem'} da biblioteca. Não dá para desfazer.`;
+    if (!(await confirm.ask(title, text, k ? 'Excluir e retirar das playlists' : 'Excluir'))) return false;
+    setBusy(true);
+    let ok = 0; const fails: string[] = [];
+    for (const m of list) {
+      try { await del(`/api/media/${m.id}${m.used_in > 0 ? '?retirar=1' : ''}`); ok++; }
+      catch (e: any) { fails.push(`${m.name}: ${e.message}`); }
+    }
+    setBusy(false);
+    if (ok) toast('ok', ok === 1 ? 'Arquivo excluído.' : `${ok} arquivos excluídos.`);
+    fails.forEach((f) => toast('erro', f));
+    after();
+    return ok > 0;
+  }
+  return { remove, busy, node: confirm.node };
+}
+
 export default function Media() {
   const me = useMe();
   const [q, setQ] = useState('');
@@ -68,12 +99,19 @@ export default function Media() {
   const { data: cols, reload: reloadCols } = useLoad(() => get('/api/collections'));
   const [sel, setSel] = useState<any>(null);
   const [manageCols, setManageCols] = useState(false);
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
   const editable = can.content(me);
+  const removal = useDeleteMedia(() => { setPicked(new Set()); setPicking(false); reload(); reloadCols(); });
+  const toggle = (id: string) => setPicked((s) => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const tags = [...new Set((data ?? []).flatMap((m: any) => m.tags))].sort() as string[];
   return (
     <>
       <PageHeader title="Biblioteca" mark="de mídia" sub="Todos os arquivos usados nas TVs, em um só lugar. Cada envio é conferido pelo servidor (formato real, tamanho, resolução e compatibilidade)."
-        actions={editable && <Button variant="ghost" onClick={() => setManageCols(true)}>Coleções</Button>} />
+        actions={editable && <>
+          {!!data?.length && <Button variant={picking ? 'dark' : 'ghost'} onClick={() => { setPicking(!picking); setPicked(new Set()); }}>{picking ? 'Cancelar seleção' : 'Selecionar'}</Button>}
+          <Button variant="ghost" onClick={() => setManageCols(true)}>Coleções</Button>
+        </>} />
       {editable && <div className="mb-6"><Uploader collectionId={col || null} onDone={() => { reload(); reloadCols(); }} /></div>}
       <div className="flex flex-wrap gap-2 mb-4 items-center">
         <Input placeholder="Buscar por nome ou etiqueta" value={q} onChange={(e) => setQ(e.target.value)} className="max-w-xs" />
@@ -84,23 +122,46 @@ export default function Media() {
       {error && <ErrorBox msg={error} />}
       {loading && !data ? <Loading /> : !data?.length ? <Empty title="Nada por aqui ainda" text="Envie as primeiras imagens e vídeos arrastando para a área acima." /> : (
         <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">
-          {data.map((m: any) => (
-            <button key={m.id} onClick={() => setSel(m)} className="text-left group block h-full">
-              <Card className="overflow-hidden group-hover:-translate-y-0.5 transition h-full">
-                <Thumb url={m.thumb_url} kind={m.kind} className="aspect-video" alt={m.name} />
-                <div className="p-2.5">
-                  <p className="text-sm font-bold truncate">{m.name}</p>
-                  <div className="flex flex-wrap items-center gap-1 mt-1">
-                    {compatBadge(m.compat)}
-                    <span className="text-[11px] text-cinza font-semibold">{m.width}×{m.height}{m.kind === 'video' ? ` · ${fmtDur(m.duration_ms)}` : ''}</span>
-                  </div>
-                  {m.used_in > 0 && <p className="text-[11px] text-cinza mt-1">Em {m.used_in} playlist(s)</p>}
-                </div>
-              </Card>
-            </button>
-          ))}
+          {data.map((m: any) => {
+            const on = picked.has(m.id);
+            return (
+              <div key={m.id} className="relative group h-full">
+                <button onClick={() => (picking ? toggle(m.id) : setSel(m))} aria-pressed={picking ? on : undefined} className="text-left block h-full w-full">
+                  <Card className={`overflow-hidden group-hover:-translate-y-0.5 transition h-full ${on ? 'ring-4 ring-pop' : ''}`}>
+                    <Thumb url={m.thumb_url} kind={m.kind} className="aspect-video" alt={m.name} />
+                    <div className="p-2.5">
+                      <p className="text-sm font-bold truncate">{m.name}</p>
+                      <div className="flex flex-wrap items-center gap-1 mt-1">
+                        {compatBadge(m.compat)}
+                        <span className="text-[11px] text-cinza font-semibold">{m.width}×{m.height}{m.kind === 'video' ? ` · ${fmtDur(m.duration_ms)}` : ''}</span>
+                      </div>
+                      {m.used_in > 0 && <p className="text-[11px] text-cinza mt-1">Em {m.used_in} playlist(s)</p>}
+                    </div>
+                  </Card>
+                </button>
+                {picking ? (
+                  <span className={`pointer-events-none absolute top-2 left-2 w-6 h-6 rounded-md grid place-items-center text-sm font-black border-2 ${on ? 'bg-pop border-pop text-white' : 'bg-white/90 border-black/30'}`} aria-hidden>{on ? '✓' : ''}</span>
+                ) : editable && (
+                  <button onClick={() => removal.remove([m])} title={`Excluir ${m.name}`} aria-label={`Excluir ${m.name}`}
+                    className="absolute top-2 right-2 w-8 h-8 grid place-items-center rounded-full bg-black/70 text-white hover:bg-pop transition sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100">
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
+      {picking && (
+        <div className="sticky bottom-4 z-20 mt-6 flex flex-wrap items-center justify-between gap-3 rounded-pop bg-preto text-white px-4 py-3 shadow-card animate-rise">
+          <p className="text-sm font-bold">{picked.size ? `${picked.size} selecionado(s)` : 'Toque nos arquivos para selecionar'}</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="light" onClick={() => setPicked(new Set(picked.size === data?.length ? [] : (data ?? []).map((m: any) => m.id)))}>{picked.size === data?.length ? 'Limpar' : 'Selecionar todos'}</Button>
+            <Button size="sm" disabled={!picked.size || removal.busy} onClick={() => removal.remove((data ?? []).filter((m: any) => picked.has(m.id)))}>{removal.busy ? 'Excluindo…' : 'Excluir selecionados'}</Button>
+          </div>
+        </div>
+      )}
+      {removal.node}
       {sel && <MediaModal m={sel} cols={cols ?? []} onClose={() => { setSel(null); reload(); }} />}
       {manageCols && <Collections cols={cols ?? []} onClose={() => { setManageCols(false); reloadCols(); }} />}
     </>
@@ -117,9 +178,10 @@ function MediaModal({ m, cols, onClose }: { m: any; cols: any[]; onClose: () => 
   const [cur, setCur] = useState(m);
   const replaceInput = useRef<HTMLInputElement>(null);
   const [repl, setRepl] = useState<number | null>(null);
+  const removal = useDeleteMedia(() => {});
   return (
     <Modal open onClose={onClose} title={cur.name} wide>
-      {confirm.node}
+      {confirm.node}{removal.node}
       <div className="grid gap-5 lg:grid-cols-[1.4fr_1fr]">
         <div>
           <div className="rounded-xl bg-preto p-2">
@@ -164,8 +226,9 @@ function MediaModal({ m, cols, onClose }: { m: any; cols: any[]; onClose: () => 
                 setRepl(null);
                 if (a) setCur(a);
               }} />
-              <Button variant="danger" onClick={async () => {
-                if (await confirm.ask('Excluir arquivo?', `"${cur.name}" sairá da biblioteca.`, 'Excluir')) { const r = await run(() => del(`/api/media/${m.id}`), 'Arquivo excluído.'); if (r) onClose(); }
+              <Button variant="danger" disabled={removal.busy} onClick={async () => {
+                const used = usage ? usage.playlists.length + usage.units.length : m.used_in;
+                if (await removal.remove([{ ...cur, used_in: used }])) onClose();
               }}>Excluir</Button>
             </div>
           )}
