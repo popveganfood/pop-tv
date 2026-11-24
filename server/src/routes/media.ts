@@ -1,12 +1,13 @@
 import type { FastifyInstance } from 'fastify';
 import { randomBytes } from 'node:crypto';
-import { q, one } from '../db.ts';
+import { q, one, tx } from '../db.ts';
 import { config } from '../config.ts';
 import { user, assertContent, bad, notFound, HttpError } from '../auth.ts';
 import { audit } from '../audit.ts';
 import { storage } from '../storage.ts';
 import { inspect, INSPECT_BYTES } from '../inspect.ts';
 import { signedUrl } from '../resolver.ts';
+import { assertCanPublishPlaylist } from './playlists.ts';
 
 const MIME_EXT: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp', 'video/mp4': 'mp4' };
 const uuid = { type: 'string', format: 'uuid' };
@@ -31,7 +32,10 @@ async function withUrls(rows: any[]) {
 }
 
 const SELECT = `select m.*, c.name as collection_name,
-  (select count(distinct pi.playlist_id)::int from playlist_items pi where pi.media_id = m.id) as used_in
+  (select count(*)::int from playlists p
+    where exists (select 1 from playlist_items pi where pi.playlist_id = p.id and pi.media_id = m.id)
+       or exists (select 1 from published_versions v where v.id = p.published_version_id
+                   and v.items @> jsonb_build_array(jsonb_build_object('media_id', m.id::text)))) as used_in
   from media_assets m left join collections c on c.id = m.collection_id`;
 
 export default async function mediaRoutes(app: FastifyInstance) {
@@ -171,17 +175,45 @@ export default async function mediaRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { id: string } }>('/api/media/:id/usage', async (req) => usage(req.params.id));
 
-  app.delete<{ Params: { id: string } }>('/api/media/:id', async (req) => {
+  // ?retirar=1: tira o arquivo das playlists (rascunho e versão publicada, gerando nova versão) e então exclui
+  app.delete<{ Params: { id: string }; Querystring: { retirar?: string } }>('/api/media/:id', async (req) => {
     const me = user(req); assertContent(me);
     const a = await one('select * from media_assets where id = $1 and deleted_at is null', [req.params.id]);
     if (!a) throw notFound('Arquivo');
     const u = await usage(a.id);
-    if (u.playlists.length || u.units.length)
+    const inUse = u.playlists.length > 0 || u.units.length > 0;
+    if (inUse && req.query.retirar !== '1')
       throw new HttpError(409, 'Este arquivo está em uso e não pode ser excluído. Remova-o das playlists primeiro.', { usage: u });
+
+    const republished: string[] = [];
+    if (inUse) {
+      for (const p of u.playlists) await assertCanPublishPlaylist(me, p.id);
+      // nenhuma playlist publicada pode ficar vazia (a TV ficaria sem nada)
+      const live = await q(`select p.id, p.name, v.items from playlists p join published_versions v on v.id = p.published_version_id
+                             where v.items @> jsonb_build_array(jsonb_build_object('media_id', $1::text))`, [a.id]);
+      const empty = live.filter((p) => !p.items.some((i: any) => i.media_id !== a.id));
+      if (empty.length)
+        throw bad(`Não dá para excluir: ${empty.map((p) => `"${p.name}"`).join(', ')} ficaria sem nenhum arquivo. Coloque outro arquivo nela antes.`);
+      await tx(async (c) => {
+        await q('delete from playlist_items where media_id = $1', [a.id], c);
+        await q('update units set image_media_id = null where image_media_id = $1', [a.id], c);
+        for (const p of live) {
+          await q('select id from playlists where id = $1 for update', [p.id], c);
+          const v = await one(`insert into published_versions(playlist_id, version, items, note, created_by)
+                               values ($1, coalesce((select max(version) from published_versions where playlist_id = $1), 0) + 1, $2, $3, $4) returning id, version`,
+          [p.id, JSON.stringify(p.items.filter((i: any) => i.media_id !== a.id)), `Sem o arquivo excluído "${a.name}"`, me.id], c);
+          await q('update playlists set published_version_id = $2 where id = $1', [p.id, v.id], c);
+          republished.push(`${p.name} (v${v.version})`);
+        }
+        await q('update media_assets set deleted_at = now() where id = $1', [a.id], c);
+        await audit(me, 'excluir', 'mídia', a.id, `Excluiu o arquivo ${a.name}${republished.length ? ` e republicou ${republished.join(', ')}` : ' e o retirou das playlists'}`, undefined, c);
+      });
+      return { ok: true, republished };
+    }
     // exclusão lógica: versões publicadas antigas ainda podem apontar para o arquivo
     await q('update media_assets set deleted_at = now() where id = $1', [a.id]);
     await audit(me, 'excluir', 'mídia', a.id, `Excluiu o arquivo ${a.name}`);
-    return { ok: true };
+    return { ok: true, republished };
   });
 
   // ---------------- Coleções ----------------
